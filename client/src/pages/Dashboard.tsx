@@ -17,14 +17,22 @@ interface SupplyData {
   longitude: number;
 }
 
+interface MultiplierData {
+  minRatio: number;
+  multiplier: number;
+}
+
 export default function Dashboard() {
   const [hexagonResolution, setHexagonResolution] = useState(8);
   const [timeframeMinutes, setTimeframeMinutes] = useState(60);
   const [snapshotTime, setSnapshotTime] = useState(new Date());
   const [isUploadingDemand, setIsUploadingDemand] = useState(false);
   const [isUploadingSupply, setIsUploadingSupply] = useState(false);
+  const [isUploadingMultiplier, setIsUploadingMultiplier] = useState(false);
   const [demandEvents, setDemandEvents] = useState<EventData[]>([]);
   const [supplyVehicles, setSupplyVehicles] = useState<SupplyData[]>([]);
+  const [multiplierData, setMultiplierData] = useState<MultiplierData[]>([]);
+  const [basePrice, setBasePrice] = useState<number>(0);
 
   // Calculate min and max time from both demand and supply
   const { minTime, maxTime } = useMemo(() => {
@@ -152,6 +160,50 @@ export default function Dashboard() {
     toast.success("Supply data cleared");
   };
 
+  const handleMultiplierUpload = async (file: File) => {
+    setIsUploadingMultiplier(true);
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      // Parse multiplier data
+      const parsedMultipliers: MultiplierData[] = [];
+      for (const row of jsonData as any[]) {
+        const minRatio = parseFloat(row.minRatio);
+        const multiplier = parseFloat(row.multiplier);
+
+        if (!isNaN(minRatio) && !isNaN(multiplier)) {
+          parsedMultipliers.push({ minRatio, multiplier });
+        }
+      }
+
+      if (parsedMultipliers.length === 0) {
+        toast.error("No valid multiplier data found in file");
+        setIsUploadingMultiplier(false);
+        return;
+      }
+
+      // Sort by minRatio in descending order for proper lookup
+      parsedMultipliers.sort((a, b) => b.minRatio - a.minRatio);
+      setMultiplierData(parsedMultipliers);
+      toast.success(`Loaded ${parsedMultipliers.length} multiplier entries`);
+    } catch (error) {
+      console.error("Error uploading multiplier file:", error);
+      toast.error("Failed to upload multiplier file");
+    } finally {
+      setIsUploadingMultiplier(false);
+    }
+  };
+
+  const handleDeleteMultiplier = () => {
+    setMultiplierData([]);
+    toast.success("Multiplier data cleared");
+  };
+
   const handleSupplyUpload = async (file: File) => {
     setIsUploadingSupply(true);
 
@@ -259,16 +311,24 @@ export default function Dashboard() {
         onSupplyUpload={handleSupplyUpload}
         onDeleteDemand={handleDeleteDemand}
         onDeleteSupply={handleDeleteSupply}
+        onMultiplierUpload={handleMultiplierUpload}
+        onDeleteMultiplier={handleDeleteMultiplier}
+        basePrice={basePrice}
+        onBasePriceChange={setBasePrice}
         isUploadingDemand={isUploadingDemand}
         isUploadingSupply={isUploadingSupply}
+        isUploadingMultiplier={isUploadingMultiplier}
         demandCount={demandEvents.length}
         supplyCount={supplyVehicles.length}
+        multiplierCount={multiplierData.length}
         minTime={minTime}
         maxTime={maxTime}
       />
       <HexagonMap
         demandEvents={demandEvents}
         supplyVehicles={supplyVehicles}
+        multiplierData={multiplierData}
+        basePrice={basePrice}
         hexagonResolution={hexagonResolution}
         timeframeMinutes={timeframeMinutes}
         snapshotTime={snapshotTime}
