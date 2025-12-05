@@ -19,6 +19,11 @@ interface SupplyData {
   longitude: number;
 }
 
+interface MultiplierData {
+  minRatio: number;
+  multiplier: number;
+}
+
 interface MapViewState {
   longitude: number;
   latitude: number;
@@ -30,6 +35,8 @@ interface MapViewState {
 interface HexagonMapProps {
   demandEvents: EventData[];
   supplyVehicles: SupplyData[];
+  multiplierData: MultiplierData[];
+  basePrice: number;
   snapshotTime: Date;
   timeframeMinutes: number;
   hexagonResolution: number;
@@ -39,11 +46,14 @@ interface LabelPosition {
   x: number;
   y: number;
   ratio: number;
+  displayValue: string;
 }
 
 export default function HexagonMap({
   demandEvents,
   supplyVehicles,
+  multiplierData,
+  basePrice,
   snapshotTime,
   timeframeMinutes,
   hexagonResolution,
@@ -93,6 +103,23 @@ export default function HexagonMap({
     });
   }, [supplyVehicles, snapshotTime]);
 
+  // Get multiplier from ratio
+  const getMultiplier = (ratio: number): number => {
+    if (multiplierData.length === 0) return 1;
+    
+    // Sort by minRatio descending (should already be sorted, but ensure it)
+    const sorted = [...multiplierData].sort((a, b) => b.minRatio - a.minRatio);
+    
+    for (const entry of sorted) {
+      if (ratio >= entry.minRatio) {
+        return entry.multiplier;
+      }
+    }
+    
+    // If ratio is below all thresholds, return the last (lowest) multiplier
+    return sorted[sorted.length - 1]?.multiplier || 1;
+  };
+
   // Aggregate demand and supply into hexagons and calculate ratios
   const { activeHexagons, inactiveHexagons } = useMemo(() => {
     const demandMap = new Map<string, number>();
@@ -114,7 +141,7 @@ export default function HexagonMap({
     });
 
     // Calculate ratios for hexagons with data
-    const hexMap = new Map<string, { hexId: string; ratio: number; center: [number, number]; demand: number; supply: number }>();
+    const hexMap = new Map<string, { hexId: string; ratio: number; center: [number, number]; demand: number; supply: number; finalPrice: number }>();
     
     allHexIds.forEach((hexId) => {
       const demand = demandMap.get(hexId) || 0;
@@ -122,8 +149,10 @@ export default function HexagonMap({
       
       // Calculate ratio based on available data
       let ratio: number;
+      let finalPrice: number = 0;
       const hasBothData = demandMap.size > 0 && supplyMap.size > 0;
       const hasDemandOnly = demandMap.size > 0 && supplyMap.size === 0;
+      const hasMultiplier = multiplierData.length > 0;
       
       if (hasBothData) {
         // Show coefficient (demand / supply) when both files are uploaded
@@ -131,6 +160,12 @@ export default function HexagonMap({
           ratio = demand > 0 ? Infinity : 0;
         } else {
           ratio = demand / supply;
+        }
+        
+        // If multiplier and base price are available, calculate final price
+        if (hasMultiplier && basePrice > 0) {
+          const multiplier = getMultiplier(ratio);
+          finalPrice = multiplier * basePrice;
         }
       } else if (hasDemandOnly) {
         // Show sum of demand events when only demand file is uploaded
@@ -146,6 +181,7 @@ export default function HexagonMap({
         center: [lng, lat],
         demand,
         supply,
+        finalPrice,
       });
     });
 
@@ -175,6 +211,7 @@ export default function HexagonMap({
         center: [lng, lat],
         demand: 0,
         supply: 0,
+        finalPrice: 0,
       };
     });
 
@@ -182,7 +219,7 @@ export default function HexagonMap({
     console.log('Created', active.length, 'active hexagons from', filteredDemand.length, 'demand and', availableSupply.length, 'supply');
     
     return { activeHexagons: active, inactiveHexagons: inactive };
-  }, [filteredDemand, availableSupply, hexagonResolution]);
+  }, [filteredDemand, availableSupply, hexagonResolution, multiplierData, basePrice]);
 
   // Auto-center map on first data load
   useEffect(() => {
@@ -197,7 +234,6 @@ export default function HexagonMap({
         const lngs = allPoints.map(p => p.lng);
         const avgLat = lats.reduce((a, b) => a + b, 0) / lats.length;
         const avgLng = lngs.reduce((a, b) => a + b, 0) / lngs.length;
-
         setViewState((prev) => ({
           ...prev,
           latitude: avgLat,
@@ -289,16 +325,30 @@ export default function HexagonMap({
     if (!viewport || activeHexagons.length === 0) return;
 
     const newPositions: LabelPosition[] = [];
+    const hasBothData = demandEvents.length > 0 && supplyVehicles.length > 0;
+    const hasMultiplier = multiplierData.length > 0;
+    const showPrice = hasBothData && hasMultiplier && basePrice > 0;
 
     activeHexagons.forEach((hex) => {
       const [x, y] = viewport.project([hex.center[0], hex.center[1]]);
       
       // Only show labels for hexagons visible in viewport
       if (x >= 0 && x <= viewport.width && y >= 0 && y <= viewport.height) {
+        let displayValue: string;
+        
+        if (showPrice) {
+          // Show final price
+          displayValue = `$${hex.finalPrice.toFixed(2)}`;
+        } else {
+          // Show ratio or sum
+          displayValue = formatRatio(hex.ratio);
+        }
+        
         newPositions.push({
           x,
           y,
           ratio: hex.ratio,
+          displayValue,
         });
       }
     });
@@ -309,7 +359,7 @@ export default function HexagonMap({
       setLabelPositions(newPositions);
       prevPositionsRef.current = positionsKey;
     }
-  }, [activeHexagons]);
+  }, [activeHexagons, demandEvents.length, supplyVehicles.length, multiplierData.length, basePrice]);
 
   const handleAfterRender = useCallback(() => {
     const viewport = new WebMercatorViewport({
@@ -360,7 +410,7 @@ export default function HexagonMap({
               whiteSpace: 'nowrap',
             }}
           >
-            {formatRatio(pos.ratio)}
+            {pos.displayValue}
           </div>
         ))}
       </div>

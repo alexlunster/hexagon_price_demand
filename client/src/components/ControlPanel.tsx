@@ -16,6 +16,10 @@ interface ControlPanelProps {
   onSupplyUpload: (file: File) => void;
   onDeleteDemand: () => void;
   onDeleteSupply: () => void;
+  onMultiplierUpload: (file: File) => void;
+  onDeleteMultiplier: () => void;
+  basePrice: number;
+  onBasePriceChange: (price: number) => void;
   hexagonResolution: number;
   onHexagonResolutionChange: (resolution: number) => void;
   timeframeMinutes: number;
@@ -26,8 +30,10 @@ interface ControlPanelProps {
   maxTime: Date | null;
   demandCount: number;
   supplyCount: number;
+  multiplierCount: number;
   isUploadingDemand: boolean;
   isUploadingSupply: boolean;
+  isUploadingMultiplier: boolean;
 }
 
 export default function ControlPanel({
@@ -35,6 +41,10 @@ export default function ControlPanel({
   onSupplyUpload,
   onDeleteDemand,
   onDeleteSupply,
+  onMultiplierUpload,
+  onDeleteMultiplier,
+  basePrice,
+  onBasePriceChange,
   hexagonResolution,
   onHexagonResolutionChange,
   timeframeMinutes,
@@ -45,11 +55,14 @@ export default function ControlPanel({
   maxTime,
   demandCount,
   supplyCount,
+  multiplierCount,
   isUploadingDemand,
   isUploadingSupply,
+  isUploadingMultiplier,
 }: ControlPanelProps) {
   const demandInputRef = useRef<HTMLInputElement>(null);
   const supplyInputRef = useRef<HTMLInputElement>(null);
+  const multiplierInputRef = useRef<HTMLInputElement>(null);
 
   const handleDemandSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -67,6 +80,16 @@ export default function ControlPanel({
       onSupplyUpload(file);
       if (supplyInputRef.current) {
         supplyInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleMultiplierSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onMultiplierUpload(file);
+      if (multiplierInputRef.current) {
+        multiplierInputRef.current.value = "";
       }
     }
   };
@@ -210,6 +233,59 @@ export default function ControlPanel({
         </div>
         <p className="text-xs text-muted-foreground mt-2">
           Supply vehicles loaded: {supplyCount}
+        </p>
+      </div>
+
+      {/* Multiplier Upload */}
+      <div>
+        <label className="text-sm font-medium mb-2 block">Multiplier Data</label>
+        <input
+          ref={multiplierInputRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          onChange={handleMultiplierSelect}
+          className="hidden"
+        />
+        <div className="flex gap-2">
+          <Button
+            onClick={() => multiplierInputRef.current?.click()}
+            disabled={isUploadingMultiplier}
+            className="flex-1"
+            variant="outline"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {isUploadingMultiplier ? "Uploading..." : "Upload"}
+          </Button>
+          {multiplierCount > 0 && (
+            <Button
+              onClick={onDeleteMultiplier}
+              variant="destructive"
+              size="icon"
+              title="Delete multiplier data"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          Multiplier entries loaded: {multiplierCount}
+        </p>
+      </div>
+
+      {/* Base Price Input */}
+      <div>
+        <label className="text-sm font-medium mb-2 block">Base Price ($)</label>
+        <input
+          type="number"
+          value={basePrice || ""}
+          onChange={(e) => onBasePriceChange(parseFloat(e.target.value) || 0)}
+          placeholder="Enter base price"
+          min="0"
+          step="0.01"
+          className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+        />
+        <p className="text-xs text-muted-foreground mt-2">
+          Current: ${basePrice.toFixed(2)}
         </p>
       </div>
 
