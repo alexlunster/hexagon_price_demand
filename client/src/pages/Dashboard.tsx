@@ -164,20 +164,39 @@ export default function Dashboard() {
     setIsUploadingMultiplier(true);
 
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      let parsedMultipliers: MultiplierData[] = [];
 
-      // Parse multiplier data
-      const parsedMultipliers: MultiplierData[] = [];
-      for (const row of jsonData as any[]) {
-        const minRatio = parseFloat(row.minRatio);
-        const multiplier = parseFloat(row.multiplier);
+      if (file.name.endsWith('.txt')) {
+        // Parse .txt file as JSON
+        const text = await file.text();
+        const jsonData = JSON.parse(text);
+        
+        // Handle both array and object formats
+        const dataArray = Array.isArray(jsonData) ? jsonData : [jsonData];
+        
+        for (const row of dataArray) {
+          const minRatio = parseFloat(row.minRatio);
+          const multiplier = parseFloat(row.multiplier);
 
-        if (!isNaN(minRatio) && !isNaN(multiplier)) {
-          parsedMultipliers.push({ minRatio, multiplier });
+          if (!isNaN(minRatio) && !isNaN(multiplier)) {
+            parsedMultipliers.push({ minRatio, multiplier });
+          }
+        }
+      } else {
+        // Parse Excel file
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        for (const row of jsonData as any[]) {
+          const minRatio = parseFloat(row.minRatio);
+          const multiplier = parseFloat(row.multiplier);
+
+          if (!isNaN(minRatio) && !isNaN(multiplier)) {
+            parsedMultipliers.push({ minRatio, multiplier });
+          }
         }
       }
 
