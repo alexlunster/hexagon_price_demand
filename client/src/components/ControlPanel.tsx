@@ -242,7 +242,7 @@ export default function ControlPanel({
         <input
           ref={multiplierInputRef}
           type="file"
-          accept=".xlsx,.xls,.csv"
+          accept=".xlsx,.xls,.csv,.txt"
           onChange={handleMultiplierSelect}
           className="hidden"
         />
