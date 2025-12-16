@@ -157,7 +157,7 @@ export default function HexagonMap({
       if (hasBothData) {
         // Show coefficient (demand / supply) when both files are uploaded
         if (supply === 0) {
-          ratio = demand > 0 ? Infinity : 0;
+          ratio = demand > 0 ? 1 : 0.0;
         } else {
           ratio = demand / supply;
         }
