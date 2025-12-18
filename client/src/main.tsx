@@ -7,6 +7,8 @@ import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
+import { Analytics } from "@vercel/analytics/react";
+
 
 const queryClient = new QueryClient();
 
